@@ -1,17 +1,18 @@
-//CUDA headers
-#include <cuda_runtime.h>
-#include <device_launch_parameters.h>
+
 //TRT headers
 #include <NvInfer.h>
+
 //for cpp
 #include <buffers.h>
 #include <memory>
 
 //Own libaries
 #include "Logger.hpp"
-
+#include "common.hpp"
 
 using namespace std;
+
+#define MODEL "/home/joakim/Dokumenter/TensorRT/Engine/model/yolov4.onnx"
 
 struct Configurations {
     //Using 16 point floats for inference
@@ -34,6 +35,7 @@ class Engine
     private:
         //Checks if the engine with the similar filename already exists
         bool engineExists(string FILENAME);
+        bool fileExists(string FILENAME);
         //Serializes the engine name based on the configurations added by the user
         string serializeEngineName(const Configurations& config);
         
@@ -54,10 +56,12 @@ class Engine
         Dims m_inputDims;
         Dims m_outputDims;
 
+        const Configurations& m_config;
         //Cuda stream
-        cudaStream_t stream = nullptr;
+        cudaStream_t m_stream = nullptr;
 
-        const Configurations config;
+        //Engine name
+        string engineName;
     public:
 
         bool build(string ONNXFILENAME);
