@@ -9,6 +9,7 @@ cmake_minimum_required(VERSION 3.10)
 #target_link_libraries(${TARGET_NAME} nvonnxparser)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/utils/cuda" )
 set(TensorRT_DIR "/usr/src/tensorrt")
+find_package( OpenCV REQUIRED )
 find_package(CUDA)
 message("-- CUDA version: ${CUDA_VERSION}")
 
@@ -37,10 +38,12 @@ include_directories(${PROJECT_SOURCE_DIR})
 include_directories(${CUDA_INCLUDE_DIRS})  #This seems to have added the cuda_runtime api.
 include_directories(${TensorRT_INCLUDE_DIR})
 include_directories(${TensorRT_DIR}/samples/common)
-add_executable(engine main.cpp Engine.cpp)
+include_directories(${OpenCV_INCLUDE_DIRS})
+add_executable(engine main.cpp Engine.cpp Camera.cpp)
 
 #links libraries
 target_link_libraries(engine nvonnxparser)
 target_link_libraries(engine nvinfer${NVINFER_LIBRARY})
 target_link_libraries(engine ${TensorRT_DIR}/samples/common/logger.cpp)
 target_link_libraries(engine ${CUDA_LIBRARIES})
+target_link_libraries(engine ${OpenCV_LIBS})

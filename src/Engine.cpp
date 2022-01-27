@@ -13,6 +13,7 @@
 //Own
 #include "Engine.hpp"
 
+
 using namespace std;
 Engine::Engine(const Configurations &config) : m_config(config) {}
 
@@ -21,7 +22,7 @@ Engine::~Engine()
 }
 
 //Serialize the engine name
-string serializeEngineName(const Configurations& config)
+string Engine::serializeEngineName(const Configurations& config)
 {
     string name = "trt.engine";
 
@@ -110,7 +111,15 @@ bool Engine::build(string ONNXFILENAME)
     }
 
     //Getting 
+
+
+    return true;
     
+}
+
+bool Engine::fileExists(string FILENAME)
+{
+    return false;
 }
 
 
