@@ -53,8 +53,8 @@ string Engine::serializeEngineName(const Configurations& config)
 //The builder
 bool Engine::build(string ONNXFILENAME)
 {
-    engineName = serializeEngineName(m_config);
-    if (fileExists(engineName))
+    m_engineName = serializeEngineName(m_config);
+    if (fileExists(m_engineName))
     {
         cout << "Engine already exists..." << endl;
         return true;
@@ -111,7 +111,58 @@ bool Engine::build(string ONNXFILENAME)
     }
 
     //Getting 
+    const auto input = network->getInput(0);
+    const auto output = network->getOutput(0);
 
+    m_inputName = input->getName();
+    m_outputName = output->getName();
+    printf("%s : %s", m_inputName, m_outputName);
+    m_inputDims = input->getDimensions();
+    int32_t inputChannel = m_inputDims.d[1];
+    int32_t inputHeight = m_inputDims.d[2];
+    int32_t inputWidth = m_inputDims.d[3];
+
+    auto config = unique_ptr<nvinfer1::IBuilderConfig>(builder->createBuilderConfig());
+    if(!config)
+    {
+        cout << "Was not able to build the config" << endl;
+        return false;
+    }
+
+    IOptimizationProfile *defaultProfile = builder->createOptimizationProfile();
+    defaultProfile->setDimensions(m_inputName, OptProfileSelector::kMIN, Dims4(1, inputChannel, inputHeight, inputWidth));
+    defaultProfile->setDimensions(m_inputName, OptProfileSelector::kOPT, Dims4(1, inputChannel, inputHeight, inputWidth));
+    defaultProfile->setDimensions(m_inputName, OptProfileSelector::kMAX, Dims4(1, inputChannel, inputHeight, inputWidth));
+    config->addOptimizationProfile(defaultProfile);
+
+    config->setMaxWorkspaceSize(m_config.maxWorkspaceSize);
+
+        auto cudaStream = samplesCommon::makeCudaStream();
+    if(!cudaStream)
+    {
+        cout << "Could not create cudaStream." << endl;
+        return false;
+    }
+    //Setting the profile stream
+    config->setProfileStream(*cudaStream);
+
+    unique_ptr<IHostMemory> serializedModel{builder->buildSerializedNetwork(*network, *config)};
+    if(!serializedModel)
+    {
+        cout << "Could not build serialized model" << endl;
+        return false;
+    }
+
+    /*ADD DLA 
+    */
+   
+    
+    //write the engine to disk
+    ofstream outfile(m_engineName, ofstream::binary);
+    outfile.write(reinterpret_cast<const char*>(serializedModel->data()), serializedModel->size());
+    cout << "The engine has been built and saved to disk successfully" << endl;
+
+    return true;
 
     return true;
     
@@ -119,7 +170,8 @@ bool Engine::build(string ONNXFILENAME)
 
 bool Engine::fileExists(string FILENAME)
 {
-    return false;
+    ifstream f(FILENAME.c_str());
+    return f.good();
 }
 
 

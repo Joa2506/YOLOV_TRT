@@ -61,7 +61,11 @@ class Engine
         cudaStream_t m_stream = nullptr;
 
         //Engine name
-        string engineName;
+        string m_engineName;
+
+        //
+        const char * m_inputName;
+        const char * m_outputName;
     public:
 
         bool build(string ONNXFILENAME);
