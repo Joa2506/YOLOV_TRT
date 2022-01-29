@@ -1,11 +1,9 @@
-#include "Camera.hpp"
 
+#include "Test.hpp"
 
 int main()
 {
-    cv::Mat imgGray, imgBlur;
-    cv::Mat frame;
-    cv::VideoCapture cap;
-    Camera cam(cap, frame);
-    cam.run_camera();
+    Test test = Test();
+    test.build_engine();
+    return 0;
 }

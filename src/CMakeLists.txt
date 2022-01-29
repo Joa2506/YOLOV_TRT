@@ -39,7 +39,7 @@ include_directories(${CUDA_INCLUDE_DIRS})  #This seems to have added the cuda_ru
 include_directories(${TensorRT_INCLUDE_DIR})
 include_directories(${TensorRT_DIR}/samples/common)
 include_directories(${OpenCV_INCLUDE_DIRS})
-add_executable(engine main.cpp Engine.cpp Camera.cpp)
+add_executable(engine main.cpp Engine.cpp Camera.cpp Test.cpp)
 
 #links libraries
 target_link_libraries(engine nvonnxparser)
