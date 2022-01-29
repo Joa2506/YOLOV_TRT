@@ -14,3 +14,11 @@ make
 
 ./engine
 ```
+## TODO
+
+- [x] Add webcam functionality
+- [x] Create and test builder function
+- [ ] Load network function
+- [ ] Inference function
+- [ ] Test inference on webcam frames
+- [ ] Make good tests
