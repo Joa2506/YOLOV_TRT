@@ -7,10 +7,10 @@ The project will be made to utilize TensorRT framework on the Jetson Xavier arch
 
 Using cmake to install the libraries and dependencies.
 
-'''bash
+```bash
 cmake -S src/
 
 make
 
 ./engine
-'''
+```
