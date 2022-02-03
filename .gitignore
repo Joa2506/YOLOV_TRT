@@ -49,5 +49,5 @@ Makefile
 
 *.onnx
 
-#Ignore any trt engine files
+#Ignore any trt engine files. Important since they are too big
 trt.*

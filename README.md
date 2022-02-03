@@ -18,7 +18,7 @@ make
 
 - [x] Add webcam functionality
 - [x] Create and test builder function
-- [ ] Load network function
+- [x] Load network function
 - [ ] Inference function
 - [ ] Test inference on webcam frames
 - [ ] Make good tests
