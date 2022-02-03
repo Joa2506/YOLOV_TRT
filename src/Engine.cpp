@@ -179,6 +179,53 @@ bool Engine::build(string ONNXFILENAME)
     
 }
 
+bool Engine::loadNetwork()
+{
+    ifstream file(m_engineName, ios::binary | ios::ate);
+    streamsize size = file.tellg();
+    file.seekg(0, ios::beg);
+
+    vector<char> buffer(size);
+    if(!file.read(buffer.data(), size))
+    {
+        cout << "Could not read the network from disk" << endl;
+        return false;
+    }
+    //Creates a runtime object for running inference
+    unique_ptr<IRuntime> runtime{createInferRuntime(m_logger)};
+
+    //TODO: Set device index
+
+    //Let's create the engine
+    m_engine = shared_ptr<nvinfer1::ICudaEngine>(runtime->deserializeCudaEngine(buffer.data(), buffer.size()));
+    if(!m_engine)
+    {
+        cout << "Creating the cuda engine failed" << endl;
+        return false;
+    }
+
+    printf("\n\nBinding name NAME: %s\n\n", m_engine->getBindingName(1));
+    printf("Binding index output: %d\n\n", m_engine->getBindingIndex("Plus214_Output_0"));
+    printf("m_inputname == %s\n", m_inputName);
+    m_inputName = m_engine->getBindingName(0);
+    m_outputName = m_engine->getBindingName(1);
+    
+    m_inputDims = m_engine->getBindingDimensions(0);
+    m_outputDims = m_engine->getBindingDimensions(1);
+
+    printf("m_inputname == %s\n", m_inputName);
+    printf("m_outputname == %s\n", m_outputName);
+    
+    m_context = shared_ptr<nvinfer1::IExecutionContext>(m_engine->createExecutionContext());
+    if(!m_context)
+    {
+        cout << "Creating the execution context failed" << endl;
+        return false;
+    }
+    
+    return true;
+}
+
 bool Engine::fileExists(string FILENAME)
 {
     ifstream f(FILENAME.c_str());

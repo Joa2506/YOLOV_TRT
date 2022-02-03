@@ -48,3 +48,6 @@ engine
 Makefile
 
 *.onnx
+
+#Ignore any trt engine files
+trt.*
