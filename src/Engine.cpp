@@ -165,7 +165,7 @@ bool Engine::build(string ONNXFILENAME)
     }
     cout << "Model serialized" << endl;
 
-    /*ADD DLA 
+    /*TODO ADD DLA for Tegra 
     */
    
     cout << "Writing serialized model to disk..." << endl;
