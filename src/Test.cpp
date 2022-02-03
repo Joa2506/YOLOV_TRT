@@ -28,11 +28,11 @@ bool Test::build_engine()
     {
         throw runtime_error("Could not built TRT engine");
     }
-    // succ = engine.loadNetwork();
-    // if(!succ)
-    // {
-    //     throw runtime_error("Could not load network");
-    // }
+    succ = engine.loadNetwork();
+    if(!succ)
+    {
+         throw runtime_error("Could not load network");
+    }
     // start = clock();
     // succ = engine.inference();
     // end = clock();
@@ -43,5 +43,6 @@ bool Test::build_engine()
     // time = ((double)end - double(start))/CLOCKS_PER_SEC;
     // printf("Time of inference process: %f\n", time);
     // printf("End of code\n");
+
     return succ;
 }

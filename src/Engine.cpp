@@ -139,7 +139,7 @@ bool Engine::build(string ONNXFILENAME)
     IOptimizationProfile *defaultProfile = builder->createOptimizationProfile();
     defaultProfile->setDimensions(m_inputName, OptProfileSelector::kMIN, Dims4(1, inputChannel, inputHeight, inputWidth));
     defaultProfile->setDimensions(m_inputName, OptProfileSelector::kOPT, Dims4(1, inputChannel, inputHeight, inputWidth));
-    defaultProfile->setDimensions(m_inputName, OptProfileSelector::kMAX, Dims4(1, inputChannel, inputHeight, inputWidth));
+    defaultProfile->setDimensions(m_inputName, OptProfileSelector::kMAX, Dims4(m_config.maxBatchSize, inputChannel, inputHeight, inputWidth));
     config->addOptimizationProfile(defaultProfile);
 
     cout << "Optimization profile added" << endl;
@@ -186,43 +186,51 @@ bool Engine::loadNetwork()
     file.seekg(0, ios::beg);
 
     vector<char> buffer(size);
+    cout << "Trying to read engine file..." << endl;
     if(!file.read(buffer.data(), size))
     {
         cout << "Could not read the network from disk" << endl;
         return false;
     }
+    cout << "Engine file was read successfully" << endl;
     //Creates a runtime object for running inference
+    cout << "Creating a runtime object..." << endl;
     unique_ptr<IRuntime> runtime{createInferRuntime(m_logger)};
-
-    //TODO: Set device index
+    if(!runtime)
+    {
+        cout << "Could not create runtime object" << endl;
+        return false;
+    }
+    cout << "Network object was created successfully" << endl;
+    
 
     //Let's create the engine
+    cout << "Creating the cuda engine..." << endl;
     m_engine = shared_ptr<nvinfer1::ICudaEngine>(runtime->deserializeCudaEngine(buffer.data(), buffer.size()));
     if(!m_engine)
     {
         cout << "Creating the cuda engine failed" << endl;
         return false;
     }
+    
 
-    printf("\n\nBinding name NAME: %s\n\n", m_engine->getBindingName(1));
-    printf("Binding index output: %d\n\n", m_engine->getBindingIndex("Plus214_Output_0"));
-    printf("m_inputname == %s\n", m_inputName);
     m_inputName = m_engine->getBindingName(0);
     m_outputName = m_engine->getBindingName(1);
     
     m_inputDims = m_engine->getBindingDimensions(0);
     m_outputDims = m_engine->getBindingDimensions(1);
-
+    cout << "Cuda engine was created successfully" << endl;
     printf("m_inputname == %s\n", m_inputName);
     printf("m_outputname == %s\n", m_outputName);
     
+    cout << "Creating execution context..." << endl;
     m_context = shared_ptr<nvinfer1::IExecutionContext>(m_engine->createExecutionContext());
     if(!m_context)
     {
         cout << "Creating the execution context failed" << endl;
         return false;
     }
-    
+    cout << "Execution context was created successfully" << endl;
     return true;
 }
 
