@@ -25,4 +25,5 @@ class Camera
         Camera(VideoCapture video, Mat frame);
 
         bool run_camera();
+        bool open_picture();
 };

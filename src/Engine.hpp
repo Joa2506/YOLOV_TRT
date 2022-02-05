@@ -17,6 +17,8 @@ using namespace std;
 struct Configurations {
     //Using 16 point floats for inference
     bool FP16 = false;
+    //Using int8
+    bool INT8 = false;
     //Batch size for optimization
     vector<int32_t> optBatchSize;
     // Maximum allowed batch size
@@ -63,14 +65,20 @@ class Engine
         //Engine name
         string m_engineName;
 
+        size_t m_previousBatchSize;
         //
         const char * m_inputName;
         const char * m_outputName;
+
+        samplesCommon::ManagedBuffer m_inputBuffer;
+        samplesCommon::ManagedBuffer m_outputBuffer;
+
+
     public:
 
         bool build(string ONNXFILENAME);
         bool loadNetwork();
-        bool inference();
+        bool inference(const vector<cv::Mat> &images, vector<vector<float>>& featureVectors);
 
         //Constructor and destructor
         Engine(const Configurations& config);

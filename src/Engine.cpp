@@ -13,6 +13,12 @@
 //Own
 #include "Engine.hpp"
 
+//OpenCV
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/opencv.hpp>
+
 
 using namespace std;
 Engine::Engine(const Configurations &config) : m_config(config) {}
@@ -72,8 +78,8 @@ bool Engine::build(string ONNXFILENAME)
     builder->setMaxBatchSize(m_config.maxBatchSize);
 
     cout << "Buider successful!" << endl;
-    //Need to cast enum
     cout << "Building the Network..." << endl;
+    //Need to cast enum
     auto explicitBatch = 1U << static_cast<uint32_t>(nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH);
     auto network = unique_ptr<nvinfer1::INetworkDefinition>(builder->createNetworkV2(explicitBatch));
     if(!network)
@@ -234,10 +240,84 @@ bool Engine::loadNetwork()
     return true;
 }
 
+
+
+bool Engine::inference(const vector<cv::Mat> &images, vector<vector<float>>& featureVectors)
+{
+    auto dims = m_engine->getBindingDimensions(0);
+    auto outputL = m_engine->getBindingDimensions(0).d[1];
+    Dims4 inputDims = {static_cast<int32_t>(images.size()), dims.d[1], dims.d[2], dims.d[3]};
+    m_context->setBindingDimensions(0, inputDims);
+
+    if(!m_context->allInputDimensionsSpecified())
+    {
+        throw runtime_error("Error, not all dimensions specified");
+    }
+
+    auto batchSize = static_cast<int32_t>(images.size());
+
+    if(m_previousBatchSize != images.size())
+    {
+        m_inputBuffer.hostBuffer.resize(inputDims);
+        m_inputBuffer.deviceBuffer.resize(inputDims);
+
+        Dims2 outputDims {batchSize, outputL};
+
+        m_outputBuffer.hostBuffer.resize(outputDims);
+        m_outputBuffer.deviceBuffer.resize(outputDims);
+
+        m_previousBatchSize = batchSize;
+    }
+
+    auto * hostDataBuffer = static_cast<float*>(m_inputBuffer.hostBuffer.data());
+
+
+    for (size_t i = 0; i < images.size(); ++i)
+    {
+        auto image = images[i];
+
+        image.convertTo(image, CV_32FC1, 1.f / 255.f);   
+        cv::subtract(image, cv::Scalar(0.5f, 0.5f, 0.5f), image, cv::noArray(), -1);
+        cv::divide(image, cv::Scalar(0.5f, 0.5f, 0.5f), image, 1, -1);    
+
+        //Need to convert to NCHW from NHWC.
+        //NHWC: each pixel is stored in RGB order
+        //NOTE TO SELF: Found this conversion on stack overflow
+
+        //Test out on Tegra https://stackoverflow.com/questions/36815998/arm-neon-transpose-4x4-uint32 
+        int offset = dims.d[1] * dims.d[2] * dims.d[3] * i;
+        int r = 0, g = 0, b = 0;
+        for (size_t j = 0; j < dims.d[1] * dims.d[2] * dims.d[3]; ++j)
+        {
+            if(j % 3 == 0)
+            {
+                hostDataBuffer[offset + r++] = *(reinterpret_cast<float*>(image.data) + j);
+            }
+            else if(j % 3 == 1)
+            {
+                hostDataBuffer[offset + g++ + dims.d[2]*dims.d[3]] = *(reinterpret_cast<float*>(image.data) + j);
+            }
+            else
+            {
+                hostDataBuffer[offset + g++ + dims.d[2]*dims.d[3]*2] = *(reinterpret_cast<float*>(image.data) + j);
+            }
+        }
+        
+    }
+
+    return true;
+}
+
 bool Engine::fileExists(string FILENAME)
 {
     ifstream f(FILENAME.c_str());
     return f.good();
 }
 
+
+
+bool Engine::processInput()
+{
+    
+}
 
