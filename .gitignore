@@ -51,3 +51,5 @@ Makefile
 
 #Ignore any trt engine files. Important since they are too big
 trt.*
+
+*.jpg

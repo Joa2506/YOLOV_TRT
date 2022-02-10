@@ -14,10 +14,7 @@
 #include "Engine.hpp"
 
 //OpenCV
-#include <opencv2/imgcodecs.hpp>
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgproc.hpp>
-#include <opencv2/opencv.hpp>
+
 
 
 using namespace std;
@@ -25,6 +22,10 @@ Engine::Engine(const Configurations &config) : m_config(config) {}
 
 Engine::~Engine()
 {
+    if(m_stream)
+    {
+        cudaStreamDestroy(m_stream);
+    }
 }
 
 //Serialize the engine name
@@ -96,6 +97,7 @@ bool Engine::build(string ONNXFILENAME)
     {
         cout << "Parser creation failed!" << endl;
         cout << "Exiting..." << endl;
+
         return false;
     }
     cout << "Parser built successfully!" << endl;
@@ -147,6 +149,22 @@ bool Engine::build(string ONNXFILENAME)
     defaultProfile->setDimensions(m_inputName, OptProfileSelector::kOPT, Dims4(1, inputChannel, inputHeight, inputWidth));
     defaultProfile->setDimensions(m_inputName, OptProfileSelector::kMAX, Dims4(m_config.maxBatchSize, inputChannel, inputHeight, inputWidth));
     config->addOptimizationProfile(defaultProfile);
+
+    for (const auto& optBatchSize: m_config.optBatchSize) {
+        if (optBatchSize == 1) {
+            continue;
+        }
+
+        if (optBatchSize > m_config.maxBatchSize) {
+            throw std::runtime_error("optBatchSize cannot be greater than maxBatchSize!");
+        }
+
+        IOptimizationProfile* profile = builder->createOptimizationProfile();
+        profile->setDimensions(m_inputName, OptProfileSelector::kMIN, Dims4(1, inputChannel, inputHeight, inputWidth));
+        profile->setDimensions(m_inputName, OptProfileSelector::kOPT, Dims4(optBatchSize, inputChannel, inputHeight, inputWidth));
+        profile->setDimensions(m_inputName, OptProfileSelector::kMAX, Dims4(m_config.maxBatchSize, inputChannel, inputHeight, inputWidth));
+        config->addOptimizationProfile(profile);
+    }
 
     cout << "Optimization profile added" << endl;
     cout << "Setting max workspace size..." << endl;
@@ -237,6 +255,13 @@ bool Engine::loadNetwork()
         return false;
     }
     cout << "Execution context was created successfully" << endl;
+    //cout << "Creating CudaStream..." << endl;
+    // auto cudaRet = cudaStreamCreate(&m_stream);
+    // printf("%d\n", cudaRet);
+    // if(!cudaRet)
+    // {
+    //     throw std::runtime_error("Unable to create cuda stream");
+    // }
     return true;
 }
 
@@ -244,20 +269,24 @@ bool Engine::loadNetwork()
 
 bool Engine::inference(const vector<cv::Mat> &images, vector<vector<float>>& featureVectors)
 {
+    cout << "Starting inference..." << endl;
     auto dims = m_engine->getBindingDimensions(0);
     auto outputL = m_engine->getBindingDimensions(0).d[1];
     Dims4 inputDims = {static_cast<int32_t>(images.size()), dims.d[1], dims.d[2], dims.d[3]};
     m_context->setBindingDimensions(0, inputDims);
 
+    cout << "Setting dimensions bindings..." << endl;
     if(!m_context->allInputDimensionsSpecified())
     {
         throw runtime_error("Error, not all dimensions specified");
     }
 
     auto batchSize = static_cast<int32_t>(images.size());
-
+    printf("batchSize: %d\n", batchSize);
+    cout << "Preparing batch size.." << endl;
     if(m_previousBatchSize != images.size())
     {
+        cout << "Resizing batch size..." << endl;
         m_inputBuffer.hostBuffer.resize(inputDims);
         m_inputBuffer.deviceBuffer.resize(inputDims);
 
@@ -270,13 +299,19 @@ bool Engine::inference(const vector<cv::Mat> &images, vector<vector<float>>& fea
     }
 
     auto * hostDataBuffer = static_cast<float*>(m_inputBuffer.hostBuffer.data());
-
-
+    printf("\ndims.d[2]: %d | incputheight: %d\n", dims.d[2], m_inputDims.d[2]);
+    printf("\ndims.d[3]: %d | incputwidth: %d\n", dims.d[3], m_inputDims.d[3]);
+    printf("\ndims.d[1]: %d | incputchannel: %d\n", dims.d[1], m_inputDims.d[1]);
+    printf("\ndims.d[4]: %d | N: %d\n", dims.d[4], m_inputDims.d[4]);
+    // int32_t inputChannel = m_inputDims.d[1];
+    // int32_t inputHeight = m_inputDims.d[2];
+    // int32_t inputWidth = m_inputDims.d[3];
+    cout << "NHCW to NCHW conversion.." << endl;
     for (size_t i = 0; i < images.size(); ++i)
     {
         auto image = images[i];
 
-        image.convertTo(image, CV_32FC1, 1.f / 255.f);   
+        image.convertTo(image, CV_32FC3, 1.f / 255.f);   
         cv::subtract(image, cv::Scalar(0.5f, 0.5f, 0.5f), image, cv::noArray(), -1);
         cv::divide(image, cv::Scalar(0.5f, 0.5f, 0.5f), image, 1, -1);    
 
@@ -286,6 +321,8 @@ bool Engine::inference(const vector<cv::Mat> &images, vector<vector<float>>& fea
 
         //Test out on Tegra https://stackoverflow.com/questions/36815998/arm-neon-transpose-4x4-uint32 
         int offset = dims.d[1] * dims.d[2] * dims.d[3] * i;
+        
+
         int r = 0, g = 0, b = 0;
         for (size_t j = 0; j < dims.d[1] * dims.d[2] * dims.d[3]; ++j)
         {
@@ -301,12 +338,72 @@ bool Engine::inference(const vector<cv::Mat> &images, vector<vector<float>>& fea
             {
                 hostDataBuffer[offset + g++ + dims.d[2]*dims.d[3]*2] = *(reinterpret_cast<float*>(image.data) + j);
             }
+        // printf("%ld\n", j);
+        // fflush(stdout);
         }
         
     }
 
+    cout << "Copying from cpu to gpu..." << endl;
+    //Copying from cpu to gpu
+    //auto ret = cudaMemcpyAsync(m_inputBuffer.deviceBuffer.data(), m_inputBuffer.hostBuffer.data(), m_inputBuffer.hostBuffer.nbBytes(), cudaMemcpyHostToDevice, m_stream);
+    auto ret = cudaMemcpy(m_inputBuffer.deviceBuffer.data(), m_inputBuffer.hostBuffer.data(), m_inputBuffer.hostBuffer.nbBytes(), cudaMemcpyHostToDevice);
+    if(ret != 0)
+    {
+        cout << "Could not copy from cpu to gpu" << endl;
+        return false;
+    }
+    cout << "Creating prediction binding..." << endl;
+    vector<void*> predictionBindings = {m_inputBuffer.deviceBuffer.data(), m_outputBuffer.deviceBuffer.data()};
+
+    //Inference
+    cout << "Running inference..." << endl;
+    //bool inference = m_context->enqueueV2(predictionBindings.data(), m_stream, nullptr);
+    bool inference = m_context->executeV2(predictionBindings.data());
+    if(!inference)
+    {
+        cout << "Could not run inference" << endl;
+        return inference;
+    }
+    //Copy back to cpu
+    cout << "Copying from gpu to cpu..." << endl;
+    //ret = cudaMemcpyAsync(m_outputBuffer.deviceBuffer.data(), m_outputBuffer.hostBuffer.data(), m_outputBuffer.hostBuffer.nbBytes(), cudaMemcpyDeviceToHost, m_stream);
+    ret = cudaMemcpy(m_outputBuffer.hostBuffer.data(), m_outputBuffer.deviceBuffer.data(), m_outputBuffer.deviceBuffer.nbBytes(), cudaMemcpyDeviceToHost);
+    if(ret != 0)
+    {
+        cout << "Could not copy device from GPU back to cpu" << endl;
+        return false;
+    }
+    // ret = cudaStreamSynchronize(m_stream);
+    // if(ret != 0)
+    // {
+    //     cout << "Unable to synchronize cuda stream!" << endl;
+    //     return false;
+    // }
+
+    for (size_t i = 0; i < batchSize; ++i)
+    {
+        vector<float> featureVector;
+        featureVector.resize(outputL);
+
+        memcpy(featureVector.data(), reinterpret_cast<const char*>(m_outputBuffer.hostBuffer.data()) +
+        i * outputL * sizeof(float), outputL * sizeof(float ));
+        featureVectors.emplace_back(std::move(featureVector));
+
+        /* Emplace back
+        Appends a new element to the end of the container. The element is constructed through std::allocator_traits::construct,
+        which typically uses placement-new to construct the element in-place at the location provided by the container.
+        The arguments args... are forwarded to the constructor as std::forward<Args>(args)....
+        If the new size() is greater than capacity() then all iterators and references (including the past-the-end iterator) are invalidated. 
+        Otherwise only the past-the-end iterator is invalidated.
+        */
+    }
+
+
     return true;
 }
+
+
 
 bool Engine::fileExists(string FILENAME)
 {
@@ -318,6 +415,6 @@ bool Engine::fileExists(string FILENAME)
 
 bool Engine::processInput()
 {
-    
+    return false;
 }
 

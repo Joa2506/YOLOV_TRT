@@ -9,10 +9,16 @@
 //Own libaries
 #include "Logger.hpp"
 
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/opencv.hpp>
 
 using namespace std;
 
 #define MODEL "/home/joakim/Dokumenter/TensorRT/Engine/model/yolov4.onnx"
+#define MODEL2 "/home/joakim/Dokumenter/TensorRT/Engine/model/yolov3-10.onnx"
+#define MODELTINY "/home/joakim/Dokumenter/TensorRT/Engine/model/tiny-yolov3-11.onnx"
 
 struct Configurations {
     //Using 16 point floats for inference
@@ -24,7 +30,7 @@ struct Configurations {
     // Maximum allowed batch size
     int32_t maxBatchSize = 16;
     //Max GPU memory allowed for the model.
-    int maxWorkspaceSize = 400000000;
+    int maxWorkspaceSize = 16 << 20;//400000000;
     //GPU device index number, might be useful for more Tegras in the future
     int deviceIndex = 0;
     // DLA
