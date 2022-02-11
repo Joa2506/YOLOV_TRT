@@ -136,6 +136,10 @@ bool Engine::build(string ONNXFILENAME)
     int32_t inputHeight = m_inputDims.d[2];
     int32_t inputWidth = m_inputDims.d[3];
 
+    printf("channel : %d\n", inputChannel);
+    printf("height : %d\n", inputHeight);
+    printf("witdth : %d\n", inputWidth);
+
     auto config = unique_ptr<nvinfer1::IBuilderConfig>(builder->createBuilderConfig());
     cout << "Configuring the builder..." << endl;
     if(!config)
@@ -255,13 +259,13 @@ bool Engine::loadNetwork()
         return false;
     }
     cout << "Execution context was created successfully" << endl;
-    //cout << "Creating CudaStream..." << endl;
-    // auto cudaRet = cudaStreamCreate(&m_stream);
-    // printf("%d\n", cudaRet);
-    // if(!cudaRet)
-    // {
-    //     throw std::runtime_error("Unable to create cuda stream");
-    // }
+    cout << "Creating CudaStream..." << endl;
+    auto cudaRet = cudaStreamCreate(&m_stream);
+    printf("%d\n", cudaRet);
+    if(cudaRet != 0)
+    {
+        throw std::runtime_error("Unable to create cuda stream");
+    }
     return true;
 }
 
@@ -271,7 +275,7 @@ bool Engine::inference(const vector<cv::Mat> &images, vector<vector<float>>& fea
 {
     cout << "Starting inference..." << endl;
     auto dims = m_engine->getBindingDimensions(0);
-    auto outputL = m_engine->getBindingDimensions(0).d[1];
+    auto outputL = m_engine->getBindingDimensions(1).d[1];
     Dims4 inputDims = {static_cast<int32_t>(images.size()), dims.d[1], dims.d[2], dims.d[3]};
     m_context->setBindingDimensions(0, inputDims);
 
@@ -299,10 +303,12 @@ bool Engine::inference(const vector<cv::Mat> &images, vector<vector<float>>& fea
     }
 
     auto * hostDataBuffer = static_cast<float*>(m_inputBuffer.hostBuffer.data());
-    printf("\ndims.d[2]: %d | incputheight: %d\n", dims.d[2], m_inputDims.d[2]);
-    printf("\ndims.d[3]: %d | incputwidth: %d\n", dims.d[3], m_inputDims.d[3]);
-    printf("\ndims.d[1]: %d | incputchannel: %d\n", dims.d[1], m_inputDims.d[1]);
-    printf("\ndims.d[4]: %d | N: %d\n", dims.d[4], m_inputDims.d[4]);
+    printf("image size: %ld", images.size());
+    printf("\ndims.d[0]: %d | Batch: %d\n", dims.d[0], inputDims.d[0]);
+    printf("\ndims.d[1]: %d | inputheight: %d\n", dims.d[1], inputDims.d[1]);
+    printf("\ndims.d[2]: %d | inputwidth: %d\n", dims.d[2], inputDims.d[2]);
+    printf("\ndims.d[3]: %d | inputChannel: %d\n", dims.d[3], inputDims.d[3]);
+    
     // int32_t inputChannel = m_inputDims.d[1];
     // int32_t inputHeight = m_inputDims.d[2];
     // int32_t inputWidth = m_inputDims.d[3];
@@ -332,11 +338,11 @@ bool Engine::inference(const vector<cv::Mat> &images, vector<vector<float>>& fea
             }
             else if(j % 3 == 1)
             {
-                hostDataBuffer[offset + g++ + dims.d[2]*dims.d[3]] = *(reinterpret_cast<float*>(image.data) + j);
+                hostDataBuffer[offset + g++ + 416*416] = *(reinterpret_cast<float*>(image.data) + j);
             }
             else
             {
-                hostDataBuffer[offset + g++ + dims.d[2]*dims.d[3]*2] = *(reinterpret_cast<float*>(image.data) + j);
+                hostDataBuffer[offset + b++ + 416*416*2] = *(reinterpret_cast<float*>(image.data) + j);
             }
         // printf("%ld\n", j);
         // fflush(stdout);
@@ -345,12 +351,17 @@ bool Engine::inference(const vector<cv::Mat> &images, vector<vector<float>>& fea
     }
 
     cout << "Copying from cpu to gpu..." << endl;
+    printf("in host:   %ld\n", m_inputBuffer.hostBuffer.nbBytes());
+    printf("in device:   %ld\n", m_inputBuffer.deviceBuffer.nbBytes());
+    printf("out host: %ld\n",m_outputBuffer.hostBuffer.nbBytes());
+    printf("out device: %ld\n",m_outputBuffer.deviceBuffer.nbBytes());
     //Copying from cpu to gpu
-    //auto ret = cudaMemcpyAsync(m_inputBuffer.deviceBuffer.data(), m_inputBuffer.hostBuffer.data(), m_inputBuffer.hostBuffer.nbBytes(), cudaMemcpyHostToDevice, m_stream);
-    auto ret = cudaMemcpy(m_inputBuffer.deviceBuffer.data(), m_inputBuffer.hostBuffer.data(), m_inputBuffer.hostBuffer.nbBytes(), cudaMemcpyHostToDevice);
+    auto ret = cudaMemcpyAsync(m_inputBuffer.deviceBuffer.data(), m_inputBuffer.hostBuffer.data(), m_inputBuffer.hostBuffer.nbBytes(), cudaMemcpyHostToDevice, m_stream);
+    //auto ret = cudaMemcpy(m_inputBuffer.deviceBuffer.data(), m_inputBuffer.hostBuffer.data(), m_inputBuffer.hostBuffer.nbBytes(), cudaMemcpyHostToDevice);
     if(ret != 0)
     {
         cout << "Could not copy from cpu to gpu" << endl;
+        fprintf(stderr,"GPUassert: %s\n", cudaGetErrorString(ret));
         return false;
     }
     cout << "Creating prediction binding..." << endl;
@@ -358,28 +369,31 @@ bool Engine::inference(const vector<cv::Mat> &images, vector<vector<float>>& fea
 
     //Inference
     cout << "Running inference..." << endl;
-    //bool inference = m_context->enqueueV2(predictionBindings.data(), m_stream, nullptr);
-    bool inference = m_context->executeV2(predictionBindings.data());
+    bool inference = m_context->enqueueV2(predictionBindings.data(), m_stream, nullptr);
+    //bool inference = m_context->executeV2(predictionBindings.data());
     if(!inference)
     {
         cout << "Could not run inference" << endl;
         return inference;
     }
+    cout << "Inference was successfull!" << endl;
     //Copy back to cpu
     cout << "Copying from gpu to cpu..." << endl;
-    //ret = cudaMemcpyAsync(m_outputBuffer.deviceBuffer.data(), m_outputBuffer.hostBuffer.data(), m_outputBuffer.hostBuffer.nbBytes(), cudaMemcpyDeviceToHost, m_stream);
-    ret = cudaMemcpy(m_outputBuffer.hostBuffer.data(), m_outputBuffer.deviceBuffer.data(), m_outputBuffer.deviceBuffer.nbBytes(), cudaMemcpyDeviceToHost);
+    ret = cudaMemcpyAsync(m_outputBuffer.hostBuffer.data(), m_outputBuffer.deviceBuffer.data(), m_outputBuffer.hostBuffer.nbBytes(), cudaMemcpyDeviceToHost, m_stream);
+    //ret = cudaMemcpy(m_outputBuffer.hostBuffer.data(), m_outputBuffer.deviceBuffer.data(), m_outputBuffer.deviceBuffer.nbBytes(), cudaMemcpyDeviceToHost);
     if(ret != 0)
     {
         cout << "Could not copy device from GPU back to cpu" << endl;
+        printf("ERROR: %s\n", cudaGetErrorString(ret));
+        fflush(stdout);
         return false;
     }
-    // ret = cudaStreamSynchronize(m_stream);
-    // if(ret != 0)
-    // {
-    //     cout << "Unable to synchronize cuda stream!" << endl;
-    //     return false;
-    // }
+    ret = cudaStreamSynchronize(m_stream);
+    if(ret != 0)
+    {
+        cout << "Unable to synchronize cuda stream!" << endl;
+        return false;
+    }
 
     for (size_t i = 0; i < batchSize; ++i)
     {

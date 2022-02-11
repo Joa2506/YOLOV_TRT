@@ -44,13 +44,13 @@ int main()
         throw std::runtime_error("Unable to run inference.");
     }
 
-    // size_t numIterations = 100;
+    size_t numIterations = 100;
 
-    // for (int i = 0; i < numIterations; ++i)
-    // {
-    //     featureVectors.clear();
-    //     engine.inference(images, featureVectors);
-    // }
+    for (int i = 0; i < numIterations; ++i)
+    {
+        featureVectors.clear();
+        engine.inference(images, featureVectors);
+    }
 
     std::cout << "Success" << endl;
     

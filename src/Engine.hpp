@@ -19,6 +19,7 @@ using namespace std;
 #define MODEL "/home/joakim/Dokumenter/TensorRT/Engine/model/yolov4.onnx"
 #define MODEL2 "/home/joakim/Dokumenter/TensorRT/Engine/model/yolov3-10.onnx"
 #define MODELTINY "/home/joakim/Dokumenter/TensorRT/Engine/model/tiny-yolov3-11.onnx"
+#define MODELONNXMNIST "/home/joakim/Dokumenter/TensorRT/Engine/model/mnist-1.onnx"
 
 struct Configurations {
     //Using 16 point floats for inference
@@ -30,7 +31,7 @@ struct Configurations {
     // Maximum allowed batch size
     int32_t maxBatchSize = 16;
     //Max GPU memory allowed for the model.
-    int maxWorkspaceSize = 16 << 20;//400000000;
+    int maxWorkspaceSize = 400000000;//16 << 20;400000000;
     //GPU device index number, might be useful for more Tegras in the future
     int deviceIndex = 0;
     // DLA
