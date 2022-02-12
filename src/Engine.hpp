@@ -2,7 +2,7 @@
 //TRT headers
 #include <NvInfer.h>
 
-//for cpp
+//for cp
 #include <buffers.h>
 #include <memory>
 
@@ -21,6 +21,7 @@ using namespace std;
 #define MODELTINY "/home/joakim/Dokumenter/TensorRT/Engine/model/tiny-yolov3-11.onnx"
 #define MODELONNXMNIST "/home/joakim/Dokumenter/TensorRT/Engine/model/mnist-1.onnx"
 
+#define MODELJETSON "/home/joakimfj/Documents/TensorRt/YOLOV_TRT/model/yolov4.onnx"
 struct Configurations {
     //Using 16 point floats for inference
     bool FP16 = false;
@@ -31,7 +32,7 @@ struct Configurations {
     // Maximum allowed batch size
     int32_t maxBatchSize = 16;
     //Max GPU memory allowed for the model.
-    int maxWorkspaceSize = 400000000;//16 << 20;400000000;
+    int maxWorkspaceSize = 40000000;//16 << 20;400000000;
     //GPU device index number, might be useful for more Tegras in the future
     int deviceIndex = 0;
     // DLA
