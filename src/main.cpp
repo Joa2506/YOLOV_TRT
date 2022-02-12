@@ -27,8 +27,9 @@ int main()
     const size_t batchSize = 4;
     std::vector<cv::Mat> images;
 
-    const std::string InputImage = "turkish_coffee.jpg";
+    //const std::string InputImage = "turkish_coffee.jpg";
     //const std::string InputImage = "img.jpg";
+    const std::string InputImage = "images.jpeg";
     auto img = cv::imread(InputImage);
     cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
 

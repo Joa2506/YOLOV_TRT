@@ -313,7 +313,7 @@ bool Engine::inference(const vector<cv::Mat> &images, vector<vector<float>>& fea
     // int32_t inputHeight = m_inputDims.d[2];
     // int32_t inputWidth = m_inputDims.d[3];
     cout << "NHCW to NCHW conversion.." << endl;
-    for (size_t i = 0; i < images.size(); ++i)
+    for (int i = 0; i < images.size(); ++i)
     {
         auto image = images[i];
 
@@ -328,26 +328,35 @@ bool Engine::inference(const vector<cv::Mat> &images, vector<vector<float>>& fea
         //Test out on Tegra https://stackoverflow.com/questions/36815998/arm-neon-transpose-4x4-uint32 
         int offset = dims.d[1] * dims.d[2] * dims.d[3] * i;
         
-
+        printf("%d\n", dims.d[1] * dims.d[2] * dims.d[3]);
+        printf("Her1\n");
+        fflush(stdout);
         int r = 0, g = 0, b = 0;
-        for (size_t j = 0; j < dims.d[1] * dims.d[2] * dims.d[3]; ++j)
+        for (int j = 0; j < dims.d[1] * dims.d[2] * dims.d[3]; j++)
         {
+            printf("Her%d\n", j);
             if(j % 3 == 0)
-            {
+            {   
+                printf("r\n");
                 hostDataBuffer[offset + r++] = *(reinterpret_cast<float*>(image.data) + j);
             }
             else if(j % 3 == 1)
             {
-                hostDataBuffer[offset + g++ + 416*416] = *(reinterpret_cast<float*>(image.data) + j);
+                printf("g\n");
+                hostDataBuffer[offset + g++ + dims.d[2]*dims.d[3]] = *(reinterpret_cast<float*>(image.data) + j);
+                
             }
             else
             {
-                hostDataBuffer[offset + b++ + 416*416*2] = *(reinterpret_cast<float*>(image.data) + j);
+                printf("b\n");
+                hostDataBuffer[offset + b++ + dims.d[2] * dims.d[3]*2] = *(reinterpret_cast<float*>(image.data) + j);
+                
             }
-        // printf("%ld\n", j);
-        // fflush(stdout);
+        printf("%d\n", j);
+        fflush(stdout);
         }
-        
+        printf("Her2\n");
+        fflush(stdout);
     }
 
     cout << "Copying from cpu to gpu..." << endl;
