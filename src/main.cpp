@@ -5,7 +5,7 @@
 int main()
 {
     Configurations config;
-    config.optBatchSize = {2, 4, 8};
+    config.optBatchSize = {4};
 
     clock_t start, end;
     double time;
@@ -13,7 +13,7 @@ int main()
 
     Engine engine(config);
 
-    bool succ = engine.build(MODELJETSON);
+    bool succ = engine.build(MODEL);
     if(!succ)
     {
         throw runtime_error("Could not built TRT engine");
@@ -27,7 +27,7 @@ int main()
     const size_t batchSize = 4;
     std::vector<cv::Mat> images;
 
-    const std::string InputImage = "turkish_Coffee.jpg";
+    const std::string InputImage = "turkish_coffee.jpg";
     //const std::string InputImage = "img.jpg";
     //const std::string InputImage = "images.jpeg";
     auto img = cv::imread(InputImage);

@@ -32,7 +32,7 @@ struct Configurations {
     // Maximum allowed batch size
     int32_t maxBatchSize = 16;
     //Max GPU memory allowed for the model.
-    int maxWorkspaceSize = 40000000;//16 << 20;400000000;
+    int maxWorkspaceSize = 400000000;//16 << 20;400000000;
     //GPU device index number, might be useful for more Tegras in the future
     int deviceIndex = 0;
     // DLA
