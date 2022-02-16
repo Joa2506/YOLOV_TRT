@@ -5,7 +5,7 @@
 int main()
 {
     Configurations config;
-    config.optBatchSize = {4};
+    config.optBatchSize = {1, 2, 4, 8};
 
     clock_t start, end;
     double time;
@@ -13,7 +13,7 @@ int main()
 
     Engine engine(config);
 
-    bool succ = engine.build(MODEL);
+    bool succ = engine.build(RESNET);
     if(!succ)
     {
         throw runtime_error("Could not built TRT engine");
@@ -24,10 +24,11 @@ int main()
          throw runtime_error("Could not load network");
     }
 
-    const size_t batchSize = 4;
+    const size_t batchSize = 1;
     std::vector<cv::Mat> images;
 
-    const std::string InputImage = "turkish_coffee.jpg";
+    //const std::string InputImage = "turkish_coffee.jpg";
+    const std::string InputImage = "zidane.jpg";
     //const std::string InputImage = "img.jpg";
     //const std::string InputImage = "images.jpeg";
     auto img = cv::imread(InputImage);

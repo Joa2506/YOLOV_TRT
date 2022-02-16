@@ -329,7 +329,6 @@ bool Engine::inference(const vector<cv::Mat> &images, vector<vector<float>>& fea
         //Test out on Tegra https://stackoverflow.com/questions/36815998/arm-neon-transpose-4x4-uint32 
         int offset = dims.d[1] * dims.d[2] * dims.d[3] * i;
         
-        printf("%d\n", dims.d[1] * dims.d[2] * dims.d[3]);
        
         int r = 0, g = 0, b = 0;
         for (int j = 0; j < dims.d[1] * dims.d[2] * dims.d[3]; j++)
