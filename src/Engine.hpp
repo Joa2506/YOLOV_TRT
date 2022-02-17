@@ -20,8 +20,8 @@ using namespace std;
 #define MODEL2 "/home/joakim/Dokumenter/TensorRT/Engine/model/yolov3-10.onnx"
 #define MODELTINY "/home/joakim/Dokumenter/TensorRT/Engine/model/tiny-yolov3-11.onnx"
 #define MODELONNXMNIST "/home/joakim/Dokumenter/TensorRT/Engine/model/mnist-1.onnx"
-
 #define RESNET "/usr/src/tensorrt/data/resnet50/ResNet50.onnx"
+#define MODELYOLOV2 "/home/joakim/Dokumenter/TensorRT/Engine/model/yolov2-coco-9.onnx"
 
 #define MODELJETSON "/home/joakimfj/Documents/TensorRt/YOLOV_TRT/model/yolov4.onnx"
 struct Configurations {
