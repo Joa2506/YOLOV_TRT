@@ -13,7 +13,7 @@ int main()
 
     Engine engine(config);
 
-    bool succ = engine.build(MODELYOLOV2);
+    bool succ = engine.build(MODEL);
     if(!succ)
     {
         throw runtime_error("Could not built TRT engine");
@@ -24,13 +24,15 @@ int main()
          throw runtime_error("Could not load network");
     }
 
-    const size_t batchSize = 4;
+    const size_t batchSize = 1;
     std::vector<cv::Mat> images;
 
     //const std::string InputImage = "turkish_coffee.jpg";
-    const std::string InputImage = "zidane.jpg";
+    //const std::string InputImage = "zidane.jpg";
     //const std::string InputImage = "img.jpg";
     //const std::string InputImage = "images.jpeg";
+    const std::string InputImage = "demo.jpg";
+    
     auto img = cv::imread(InputImage);
     cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
 

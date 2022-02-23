@@ -152,7 +152,7 @@ bool Engine::build(string ONNXFILENAME)
     IOptimizationProfile *defaultProfile = builder->createOptimizationProfile();
     defaultProfile->setDimensions(m_inputName, OptProfileSelector::kMIN, Dims4(1, inputChannel, inputHeight, inputWidth));
     defaultProfile->setDimensions(m_inputName, OptProfileSelector::kOPT, Dims4(1, inputChannel, inputHeight, inputWidth));
-    defaultProfile->setDimensions(m_inputName, OptProfileSelector::kMAX, Dims4(1, inputChannel, inputHeight, inputWidth));
+    defaultProfile->setDimensions(m_inputName, OptProfileSelector::kMAX, Dims4(m_config.maxBatchSize, inputChannel, inputHeight, inputWidth));
     config->addOptimizationProfile(defaultProfile);
 
     for (const auto& optBatchSize: m_config.optBatchSize) {
@@ -166,8 +166,8 @@ bool Engine::build(string ONNXFILENAME)
 
         IOptimizationProfile* profile = builder->createOptimizationProfile();
         profile->setDimensions(m_inputName, OptProfileSelector::kMIN, Dims4(1, inputChannel, inputHeight, inputWidth));
-        profile->setDimensions(m_inputName, OptProfileSelector::kOPT, Dims4(1, inputChannel, inputHeight, inputWidth));
-        profile->setDimensions(m_inputName, OptProfileSelector::kMAX, Dims4(1, inputChannel, inputHeight, inputWidth));
+        profile->setDimensions(m_inputName, OptProfileSelector::kOPT, Dims4(optBatchSize, inputChannel, inputHeight, inputWidth));
+        profile->setDimensions(m_inputName, OptProfileSelector::kMAX, Dims4(m_config.maxBatchSize, inputChannel, inputHeight, inputWidth));
         config->addOptimizationProfile(profile);
     }
 
@@ -255,6 +255,7 @@ bool Engine::loadNetwork()
     m_outputName = m_engine->getBindingName(1);
     
     m_inputDims = m_engine->getBindingDimensions(0);
+
     m_outputDims = m_engine->getBindingDimensions(1);
     cout << "Cuda engine was created successfully" << endl;
     printf("m_inputname == %s\n", m_inputName);
@@ -288,11 +289,9 @@ bool Engine::inference(const vector<cv::Mat> &images, vector<vector<float>>& fea
     auto outputL = m_engine->getBindingDimensions(1).d[1];
     auto batchSize = static_cast<int32_t>(images.size());
 
+    //
     Dims4 inputDims = {batchSize, m_inputDims.d[1], m_inputDims.d[2], m_inputDims.d[3]};
-    printf("d[0]: %d | inputDims[0]: %d\n",dims.d[0], m_inputDims.d[0]);
-    printf("d[1]: %d | inputDims[0]: %d\n",dims.d[1], m_inputDims.d[1]);
-    printf("d[2]: %d | inputDims[0]: %d\n",dims.d[2], m_inputDims.d[2]);
-    printf("d[3]: %d | inputDims[0]: %d\n",dims.d[3], m_inputDims.d[3]);
+
     m_context->setBindingDimensions(0, inputDims);
 
     cout << "Setting dimensions bindings..." << endl;
@@ -310,8 +309,9 @@ bool Engine::inference(const vector<cv::Mat> &images, vector<vector<float>>& fea
         m_inputBuffer.hostBuffer.resize(inputDims);
         m_inputBuffer.deviceBuffer.resize(inputDims);
 
-        Dims2 outputDims {batchSize, outputL};
-
+        //Dims2 outputDims {batchSize, outputL};
+        Dims4 outputDims {1, 52, 52, 3};
+        printf("ouputL %d\n", outputL);
         m_outputBuffer.hostBuffer.resize(outputDims);
         m_outputBuffer.deviceBuffer.resize(outputDims);
 
@@ -361,8 +361,8 @@ bool Engine::inference(const vector<cv::Mat> &images, vector<vector<float>>& fea
 
     cout << "Copying from cpu to gpu..." << endl;
     //Copying from cpu to gpu
-    auto ret = cudaMemcpyAsync(m_inputBuffer.deviceBuffer.data(), m_inputBuffer.hostBuffer.data(), m_inputBuffer.hostBuffer.nbBytes(), cudaMemcpyHostToDevice, m_stream);
-    //auto ret = cudaMemcpy(m_inputBuffer.deviceBuffer.data(), m_inputBuffer.hostBuffer.data(), m_inputBuffer.hostBuffer.nbBytes(), cudaMemcpyHostToDevice);
+    //auto ret = cudaMemcpyAsync(m_inputBuffer.deviceBuffer.data(), hostDataBuffer, m_inputBuffer.hostBuffer.nbBytes(), cudaMemcpyHostToDevice, m_stream);
+    auto ret = cudaMemcpy(m_inputBuffer.deviceBuffer.data(), m_inputBuffer.hostBuffer.data(), m_inputBuffer.hostBuffer.nbBytes(), cudaMemcpyHostToDevice);
     if(ret != 0)
     {
         cout << "Could not copy from cpu to gpu" << endl;
@@ -374,13 +374,13 @@ bool Engine::inference(const vector<cv::Mat> &images, vector<vector<float>>& fea
 
     //Inference
     cout << "Running inference..." << endl;
-    bool inference = m_context->enqueueV2(predictionBindings.data(), m_stream, nullptr);
-    //bool inference = m_context->executeV2(predictionBindings.data());
+    //bool inference = m_context->enqueueV2(predictionBindings.data(), m_stream, nullptr);
+    bool inference = m_context->executeV2(predictionBindings.data());
     cout << "Inference was successfull!" << endl;
     //Copy back to cpu
     cout << "Copying from gpu to cpu..." << endl;
-    ret = cudaMemcpyAsync(m_outputBuffer.hostBuffer.data(), m_outputBuffer.deviceBuffer.data(), m_outputBuffer.hostBuffer.nbBytes(), cudaMemcpyDeviceToHost, m_stream);
-    //ret = cudaMemcpy(m_outputBuffer.hostBuffer.data(), m_outputBuffer.deviceBuffer.data(), m_outputBuffer.deviceBuffer.nbBytes(), cudaMemcpyDeviceToHost);
+    //ret = cudaMemcpyAsync(m_outputBuffer.hostBuffer.data(), m_outputBuffer.deviceBuffer.data(), m_outputBuffer.hostBuffer.nbBytes(), cudaMemcpyDeviceToHost, m_stream);
+    ret = cudaMemcpy(m_outputBuffer.hostBuffer.data(), m_outputBuffer.deviceBuffer.data(), m_outputBuffer.deviceBuffer.nbBytes(), cudaMemcpyDeviceToHost);
     if(ret != 0)
     {
         cout << "Could not copy device from GPU back to cpu" << endl;
@@ -388,7 +388,7 @@ bool Engine::inference(const vector<cv::Mat> &images, vector<vector<float>>& fea
         fflush(stdout);
         return false;
     }
-    ret = cudaStreamSynchronize(m_stream);
+    //ret = cudaStreamSynchronize(m_stream);
     if(ret != 0)
     {
         cout << "Unable to synchronize cuda stream!" << endl;

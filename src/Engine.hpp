@@ -17,11 +17,12 @@
 using namespace std;
 
 #define MODEL "/home/joakim/Dokumenter/TensorRT/Engine/model/yolov4.onnx"
-#define MODEL2 "/home/joakim/Dokumenter/TensorRT/Engine/model/yolov3-10.onnx"
+#define MODEL3 "/home/joakim/Dokumenter/TensorRT/Engine/model/yolov3-10.onnx"
 #define MODELTINY "/home/joakim/Dokumenter/TensorRT/Engine/model/tiny-yolov3-11.onnx"
 #define MODELONNXMNIST "/home/joakim/Dokumenter/TensorRT/Engine/model/mnist-1.onnx"
 #define RESNET "/usr/src/tensorrt/data/resnet50/ResNet50.onnx"
-#define MODELYOLOV2 "/home/joakim/Dokumenter/TensorRT/Engine/model/yolov2-coco-9.onnx"
+#define MODEL2 "/home/joakim/Dokumenter/TensorRT/Engine/model/yolov2-coco-9.onnx"
+#define MODELSSD "/home/joakim/Dokumenter/TensorRT/Engine/model/ssd-12.onnx"
 
 #define MODELJETSON "/home/joakimfj/Documents/TensorRt/YOLOV_TRT/model/yolov4.onnx"
 struct Configurations {
@@ -34,7 +35,7 @@ struct Configurations {
     // Maximum allowed batch size
     int32_t maxBatchSize = 16;
     //Max GPU memory allowed for the model.
-    long int maxWorkspaceSize = 4294967296;//
+    long int maxWorkspaceSize = 4000000000;//
     //GPU device index number, might be useful for more Tegras in the future
     int deviceIndex = 0;
     // DLA
