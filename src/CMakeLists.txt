@@ -7,8 +7,9 @@ cmake_minimum_required(VERSION 3.10)
 
 #links libraries
 #target_link_libraries(${TARGET_NAME} nvonnxparser)
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/utils/cuda" )
+set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 set(TensorRT_DIR "/usr/src/tensorrt")
+set(CUDA_TOOLKIT_ROOT_DIR /usr/local/cuda-11.6)
 find_package( OpenCV REQUIRED )
 find_package(CUDA)
 message("-- CUDA version: ${CUDA_VERSION}")
@@ -22,16 +23,15 @@ set(
 )
 
 if(CUDA_VERSION_MAJOR GREATER 9)
-	message("-- CUDA ${CUDA_VERSION_MAJOR} detected, enabling SM_72")
+	message("-- CUDA ${CUDA_VERSION_MAJOR} detected, enabling SM_86")
 
 	set(
 		CUDA_NVCC_FLAGS
 		${CUDA_NVCC_FLAGS}; 
-		-gencode arch=compute_72,code=sm_72
+		-gencode arch_86,code=sm_86
 	)
 endif()
 
-set(TensorRT_DIR "/usr/src/tensorrt")
 
 # specify the executable and corresponding source file
 include_directories(${PROJECT_SOURCE_DIR})

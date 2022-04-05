@@ -13,6 +13,9 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/opencv.hpp>
+#include <opencv2/core/types.hpp>
+#include <opencv2/core/cuda.hpp>
+#include "opencv2/imgproc.hpp"
 
 using namespace std;
 
@@ -33,9 +36,9 @@ struct Configurations {
     //Batch size for optimization
     vector<int32_t> optBatchSize;
     // Maximum allowed batch size
-    int32_t maxBatchSize = 16;
+    int32_t maxBatchSize = 32;
     //Max GPU memory allowed for the model.
-    long int maxWorkspaceSize = 4000000000;//
+    long int maxWorkspaceSize = 400000000;//
     //GPU device index number, might be useful for more Tegras in the future
     int deviceIndex = 0;
     // DLA
@@ -52,10 +55,12 @@ class Engine
         //Serializes the engine name based on the configurations added by the user
         string serializeEngineName(const Configurations& config);
         
-        //Might need to process the data that we runs inference on
-        bool processInput();
+        //Processes the input image
+        bool processInput(Dims& dims, cv::Mat img, float* gpu_input);
         //Verifies the expected output
         bool verifyOutput();
+
+        inline void* safeCudaMalloc(size_t memSize);
 
         //Engine for running inference
         shared_ptr<nvinfer1::ICudaEngine> m_engine = nullptr;
@@ -84,6 +89,11 @@ class Engine
         samplesCommon::ManagedBuffer m_inputBuffer;
         samplesCommon::ManagedBuffer m_outputBuffer;
 
+        samplesCommon::ManagedBuffer m_buffer;
+
+
+        
+        size_t getSizeByDimensions(const nvinfer1::Dims& dims);
 
     public:
 

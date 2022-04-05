@@ -14,6 +14,11 @@
 #include "Engine.hpp"
 
 //OpenCV
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/core/cuda.hpp>
+#include <opencv2/cudawarping.hpp>
+#include <opencv2/core.hpp>
+#include <opencv2/cudaarithm.hpp>
 
 
 
@@ -136,10 +141,10 @@ bool Engine::build(string ONNXFILENAME)
     int32_t inputChannel = m_inputDims.d[1];
     int32_t inputHeight = m_inputDims.d[2];
     int32_t inputWidth = m_inputDims.d[3];
-
-    printf("channel : %d\n", inputChannel);
-    printf("height : %d\n", inputHeight);
-    printf("witdth : %d\n", inputWidth);
+    int32_t numberOfInputs = network->getNbInputs();
+    // Dims d = network->getInput(0)->getDimensions();
+    // printf("\nnumber of Inputs: %d\n", numberOfInputs);
+    // printf("\nnumber of dims: %d\n", d.nbDims);
 
     auto config = unique_ptr<nvinfer1::IBuilderConfig>(builder->createBuilderConfig());
     cout << "Configuring the builder..." << endl;
@@ -173,7 +178,7 @@ bool Engine::build(string ONNXFILENAME)
 
     cout << "Optimization profile added" << endl;
     cout << "Setting max workspace size..." << endl;
-    config->setMaxWorkspaceSize(m_config.maxWorkspaceSize);
+    config->setMemoryPoolLimit(MemoryPoolType::kWORKSPACE, m_config.maxWorkspaceSize);
     cout << "Builder configured successfully" << endl;
     cout << "Making cuda stream..." << endl;
     auto cudaStream = samplesCommon::makeCudaStream();
@@ -281,144 +286,6 @@ bool Engine::loadNetwork()
 }
 
 
-
-bool Engine::inference(const vector<cv::Mat> &images, vector<vector<float>>& featureVectors)
-{
-    cout << "Starting inference..." << endl;
-    auto dims = m_engine->getBindingDimensions(0);
-    auto outputL = m_engine->getBindingDimensions(1).d[1];
-    auto batchSize = static_cast<int32_t>(images.size());
-
-    //
-    Dims4 inputDims = {batchSize, m_inputDims.d[1], m_inputDims.d[2], m_inputDims.d[3]};
-
-    m_context->setBindingDimensions(0, inputDims);
-
-    cout << "Setting dimensions bindings..." << endl;
-    if(!m_context->allInputDimensionsSpecified())
-    {
-        throw runtime_error("Error, not all dimensions specified");
-    }
-
-    
-    printf("batchSize: %d\n", batchSize);
-    cout << "Preparing batch size.." << endl;
-    if(m_previousBatchSize != images.size())
-    {
-        cout << "Resizing batch size..." << endl;
-        m_inputBuffer.hostBuffer.resize(inputDims);
-        m_inputBuffer.deviceBuffer.resize(inputDims);
-
-        //Dims2 outputDims {batchSize, outputL};
-        Dims4 outputDims {1, 52, 52, 3};
-        printf("ouputL %d\n", outputL);
-        m_outputBuffer.hostBuffer.resize(outputDims);
-        m_outputBuffer.deviceBuffer.resize(outputDims);
-
-        m_previousBatchSize = batchSize;
-    }
-
-    auto * hostDataBuffer = static_cast<float*>(m_inputBuffer.hostBuffer.data());
-
-    // int32_t inputChannel = m_inputDims.d[1];
-    // int32_t inputHeight = m_inputDims.d[2];
-    // int32_t inputWidth = m_inputDims.d[3];
-    cout << "NHCW to NCHW conversion.." << endl;
-    for (int i = 0; i < images.size(); ++i)
-    {
-        auto image = images[i];
-
-        image.convertTo(image, CV_32FC3, 1.f / 255.f);   
-        cv::subtract(image, cv::Scalar(0.5f, 0.5f, 0.5f), image, cv::noArray(), -1);
-        cv::divide(image, cv::Scalar(0.5f, 0.5f, 0.5f), image, 1, -1);    
-
-        //Need to convert to NCHW from NHWC.
-        //NHWC: each pixel is stored in RGB order
-        //NOTE TO SELF: Found this conversion on stack overflow
-
-        //Test out on Tegra https://stackoverflow.com/questions/36815998/arm-neon-transpose-4x4-uint32 
-        int offset = dims.d[1] * dims.d[2] * dims.d[3] * i;
-        
-       
-        int r = 0, g = 0, b = 0;
-        for (int j = 0; j < dims.d[1] * dims.d[2] * dims.d[3]; j++)
-        {
-            if(j % 3 == 0)
-            {   
-                hostDataBuffer[offset + r++] = *(reinterpret_cast<float*>(image.data) + j);
-            }
-            else if(j % 3 == 1)
-            {
-                hostDataBuffer[offset + g++ + dims.d[2]*dims.d[1]] = *(reinterpret_cast<float*>(image.data) + j);   
-            }
-            else
-            {
-                hostDataBuffer[offset + b++ + dims.d[2] * dims.d[1]*2] = *(reinterpret_cast<float*>(image.data) + j);
-                
-            }
-        }
-    }
-
-    cout << "Copying from cpu to gpu..." << endl;
-    //Copying from cpu to gpu
-    //auto ret = cudaMemcpyAsync(m_inputBuffer.deviceBuffer.data(), hostDataBuffer, m_inputBuffer.hostBuffer.nbBytes(), cudaMemcpyHostToDevice, m_stream);
-    auto ret = cudaMemcpy(m_inputBuffer.deviceBuffer.data(), m_inputBuffer.hostBuffer.data(), m_inputBuffer.hostBuffer.nbBytes(), cudaMemcpyHostToDevice);
-    if(ret != 0)
-    {
-        cout << "Could not copy from cpu to gpu" << endl;
-        fprintf(stderr,"GPUassert: %s\n", cudaGetErrorString(ret));
-        return false;
-    }
-    cout << "Creating prediction binding..." << endl;
-    vector<void*> predictionBindings = {m_inputBuffer.deviceBuffer.data(), m_outputBuffer.deviceBuffer.data()};
-
-    //Inference
-    cout << "Running inference..." << endl;
-    //bool inference = m_context->enqueueV2(predictionBindings.data(), m_stream, nullptr);
-    bool inference = m_context->executeV2(predictionBindings.data());
-    cout << "Inference was successfull!" << endl;
-    //Copy back to cpu
-    cout << "Copying from gpu to cpu..." << endl;
-    //ret = cudaMemcpyAsync(m_outputBuffer.hostBuffer.data(), m_outputBuffer.deviceBuffer.data(), m_outputBuffer.hostBuffer.nbBytes(), cudaMemcpyDeviceToHost, m_stream);
-    ret = cudaMemcpy(m_outputBuffer.hostBuffer.data(), m_outputBuffer.deviceBuffer.data(), m_outputBuffer.deviceBuffer.nbBytes(), cudaMemcpyDeviceToHost);
-    if(ret != 0)
-    {
-        cout << "Could not copy device from GPU back to cpu" << endl;
-        printf("ERROR: %s\n", cudaGetErrorString(ret));
-        fflush(stdout);
-        return false;
-    }
-    //ret = cudaStreamSynchronize(m_stream);
-    if(ret != 0)
-    {
-        cout << "Unable to synchronize cuda stream!" << endl;
-        return false;
-    }
-
-    for (size_t i = 0; i < batchSize; ++i)
-    {
-        vector<float> featureVector;
-        featureVector.resize(outputL);
-
-        memcpy(featureVector.data(), reinterpret_cast<const char*>(m_outputBuffer.hostBuffer.data()) +
-        i * outputL * sizeof(float), outputL * sizeof(float ));
-        featureVectors.emplace_back(std::move(featureVector));
-
-        /* Emplace back
-        Appends a new element to the end of the container. The element is constructed through std::allocator_traits::construct,
-        which typically uses placement-new to construct the element in-place at the location provided by the container.
-        The arguments args... are forwarded to the constructor as std::forward<Args>(args)....
-        If the new size() is greater than capacity() then all iterators and references (including the past-the-end iterator) are invalidated. 
-        Otherwise only the past-the-end iterator is invalidated.
-        */
-    }
-
-
-    return true;
-}
-
-
-
 bool Engine::fileExists(string FILENAME)
 {
     ifstream f(FILENAME.c_str());
@@ -427,22 +294,138 @@ bool Engine::fileExists(string FILENAME)
 
 
 
-bool Engine::processInput()
+bool Engine::processInput(Dims& dims, cv::Mat img, float* gpu_input)
 {
-    return false;
+    cv::Mat frame = img;
+    if(frame.empty())
+    {
+        return false;
+    }
+    
+    
+    cv::cuda::GpuMat gpu_frame;
+    
+    //Upload the frame to the gpu
+    printf("Uploading frame to gpu...\n");
+    fflush(stdout);
+    gpu_frame.upload(frame);
+    if(gpu_frame.empty())
+    {
+        printf("GPU frame is empty\n");
+        return false;
+    }
+    
+    printf("Frame uploaded to gpu\n");
+    auto input_width = dims.d[2];
+    auto input_height = dims.d[1];
+    auto channels = dims.d[3];
+    auto input_size = cv::Size(input_height, input_width);
+    printf("Height = %d\n", input_height);
+    printf("Widht = %d\n", input_width);
+    printf("Channels = %d\n", channels);
+    
+    //Resize
+    printf("Resizing image\n");
+    cv::cuda::GpuMat resized;
+    cv::cuda::resize(gpu_frame, resized, input_size, 0, 0, cv::INTER_NEAREST);
+
+    if(resized.empty())
+    {
+        printf("Resized frame is empty\n");
+        return false;
+    }
+
+    printf("Image resized\n");
+    //Normalize
+    printf("Normalising image\n");
+    cv::cuda::GpuMat flt_image;
+    resized.convertTo(flt_image, CV_32FC3, 1.f / 255.f); //FX marks float x CX marks channel x. RGB is x = 3
+    if(flt_image.empty())
+    {
+        printf("FLT is empyt\n");
+        return false;
+    }
+    printf("Converted\n");
+    cv::cuda::subtract(flt_image, cv::Scalar(0.485f, 0.456f, 0.406f), flt_image, cv::noArray(), -1);
+    printf("Subtracted\n");
+    cv::cuda::divide(flt_image, cv::Scalar(0.229f, 0.224f, 0.225f), flt_image, 1, -1);
+    printf("Divided\n");
+    //To tensor
+    printf("Number of channels %d", channels);
+    printf("To Tensor\n");
+    std::vector<cv::cuda::GpuMat> chw;
+    for (size_t i = 0; i < 3; ++i)
+    {
+        chw.emplace_back(cv::cuda::GpuMat(input_size, CV_32FC1, gpu_input + i * input_width*input_height));
+    }
+    printf("Emplaced back\n");
+    fflush(stdout);
+    cv::cuda::split(flt_image, chw);
+    printf("Made to Tensor\n");
+    return true;
+
 }
 
-// bool Engine::inference(const std::vector<cv::Mat> &images, std::vector<std::vector<float>>& featureVectors) {
+bool Engine::inference(const std::vector<cv::Mat> &images, std::vector<std::vector<float>>& featureVectors) 
+{
+    int driverversion;
+    cudaRuntimeGetVersion(&driverversion);
+    printf("Driver version is: %d\n", driverversion);
+    
+    cout << "Beginning inference..." << endl;
+    std::vector< nvinfer1::Dims > input_dims; // we expect only one input
+    std::vector< nvinfer1::Dims > output_dims;
+    //vector<void*> buffers(m_engine->getNbBindings());
+    vector<void*> buffers(m_engine->getNbBindings());
+    printf("Number of bindings: %d\n", m_engine->getNbBindings());
+    auto batch_size = images.size();
+    for (size_t i = 0; i < m_engine->getNbBindings(); ++i)
+    {
+        size_t bindingSize = getSizeByDimensions(m_engine->getBindingDimensions(i)) * batch_size * sizeof(float);
+        cudaMalloc(&buffers[i], bindingSize);
+        if(m_engine->bindingIsInput(i))
+        {
+            input_dims.emplace_back(m_engine->getBindingDimensions(i));
+        }
+        else
+        {
+            output_dims.emplace_back(m_engine->getBindingDimensions(i));
+        }
+       
+    }
+    if(input_dims.empty() || output_dims.empty())
+    {
+            cout << "Expected at least one input and one output for network" << endl;
+            return false;
+    }
+    processInput(input_dims[0], images[0], (float*) buffers[0]);
+    m_context->executeV2(buffers.data());
+    
+    return true;
+}
 
-//     cout << "Starting inference..." << endl;
-//     auto dims = m_engine->getBindingDimensions(0);
-//     auto outputL = m_engine->getBindingDimensions(1).d[1];
-//     auto batchSize = static_cast<int32_t>(images.size());
-//     Dims4 inputDims = {batchSize, dims.d[1], dims.d[2], dims.d[3]};
-//     m_context->setBindingDimensions(0, inputDims);
 
+size_t Engine::getSizeByDimensions(const nvinfer1::Dims& dims)
+{
+    size_t size = 1;
 
+    for (size_t i = 0; i < dims.nbDims; ++i)
+    {
+        size *= dims.d[i];
+    }
+    
+    return size;
+}
 
-//     return true;
-// }
+inline void* safeCudaMalloc(size_t memSize)
+{
+    void *deviceMem;
+    CHECK(cudaMalloc(&deviceMem, memSize));
+    if(deviceMem == nullptr)
+    {
+        std::cerr << "Out of memory" << std::endl;
+        exit(1);
+    }
+    return deviceMem;
+}
 

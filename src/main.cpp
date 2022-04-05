@@ -27,15 +27,14 @@ int main()
     const size_t batchSize = 1;
     std::vector<cv::Mat> images;
 
-    //const std::string InputImage = "turkish_coffee.jpg";
+    const std::string InputImage = "turkish_coffee.jpg";
     //const std::string InputImage = "zidane.jpg";
     //const std::string InputImage = "img.jpg";
     //const std::string InputImage = "images.jpeg";
-    const std::string InputImage = "demo.jpg";
+    //const std::string InputImage = "demo.jpg";
     
     auto img = cv::imread(InputImage);
     cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
-
     for (size_t i = 0; i < batchSize; ++i)
     {
         images.push_back(img);
@@ -48,13 +47,13 @@ int main()
         throw std::runtime_error("Unable to run inference.");
     }
 
-    size_t numIterations = 100;
+    // size_t numIterations = 100;
 
-    for (int i = 0; i < numIterations; ++i)
-    {
-        featureVectors.clear();
-        engine.inference(images, featureVectors);
-    }
+    // for (int i = 0; i < numIterations; ++i)
+    // {
+    //     featureVectors.clear();
+    //     engine.inference(images, featureVectors);
+    // }
 
     std::cout << "Success" << endl;
     
